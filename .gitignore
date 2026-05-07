@@ -22,7 +22,13 @@
 
 # misc
 .DS_Store
+
+# keys & certificates — never commit private keys; .crt is technically public
+# but we keep the whole keys/ dir out of git to avoid accidents.
+keys/
 *.pem
+*.key
+*.crt
 
 # debug
 npm-debug.log*
