@@ -28,17 +28,24 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/auth");
+
+  // Only the login screen and the Supabase OTP/OAuth exchange route are
+  // public. /auth/banking/callback (Enable Banking PSD2 callback) requires
+  // an authenticated session — the user is sent there after consenting at
+  // their bank, while still logged in to Finny.
+  const isLogin = pathname === "/login";
+  const isSupabaseAuthCallback = pathname === "/auth/callback";
+  const isAuthPage = isLogin || isSupabaseAuthCallback;
   const isPublic = isAuthPage || pathname.startsWith("/_next") || pathname === "/favicon.ico";
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("next", pathname);
+    url.searchParams.set("next", pathname + request.nextUrl.search);
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  if (user && isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";
