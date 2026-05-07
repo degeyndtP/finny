@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# claude code — local prefs are personal, project-shared settings can still be committed
+.claude/settings.local.json
 
 # vercel
 .vercel
