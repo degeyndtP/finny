@@ -31,7 +31,15 @@ export function normalizeTransaction(
   tx: EbTransaction,
   ctx: { household_id: string; account_id: string },
 ): TransactionInsert {
-  const amount = Number(tx.transaction_amount.amount);
+  // Some Berlin Group implementations return a signed amount; others return
+  // an unsigned magnitude paired with credit_debit_indicator. Normalise to
+  // a signed number where negative = outflow.
+  let amount = Number(tx.transaction_amount.amount);
+  if (tx.credit_debit_indicator === "DBIT" && amount > 0) {
+    amount = -amount;
+  } else if (tx.credit_debit_indicator === "CRDT" && amount < 0) {
+    amount = -amount;
+  }
   const isOutflow = amount < 0;
 
   const counterpartyName = isOutflow

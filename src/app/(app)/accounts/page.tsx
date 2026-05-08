@@ -12,6 +12,11 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatMoney } from "@/lib/format";
 import { DisconnectButton } from "./disconnect-button";
+import { SyncButton } from "./sync-button";
+
+// Vercel Hobby max — gives the server action enough room for an initial
+// 90-day sync of a multi-account connection.
+export const maxDuration = 60;
 
 export default async function AccountsPage() {
   const supabase = await createClient();
@@ -79,12 +84,23 @@ export default async function AccountsPage() {
                         : "Awaiting consent"}
                     </CardDescription>
                   </div>
-                  <DisconnectButton
-                    connectionId={conn.id}
-                    institutionName={conn.institution_name}
-                  />
+                  <div className="flex items-center gap-2">
+                    <SyncButton
+                      connectionId={conn.id}
+                      institutionName={conn.institution_name}
+                    />
+                    <DisconnectButton
+                      connectionId={conn.id}
+                      institutionName={conn.institution_name}
+                    />
+                  </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
+                  {conn.last_error ? (
+                    <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive break-words">
+                      Last sync error: {conn.last_error}
+                    </div>
+                  ) : null}
                   {connAccounts.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       No accounts under this connection yet.

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { enableBanking, EnableBankingError } from "@/lib/banking";
-import { createClient } from "@/lib/supabase/server";
+import { syncBankConnection } from "@/lib/banking/sync";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 /**
  * Hard-delete a bank_connection. FK cascades remove its accounts,
@@ -59,4 +60,49 @@ export async function disconnectBank(
   revalidatePath("/accounts");
   revalidatePath("/");
   return { ok: true };
+}
+
+/**
+ * Pull the latest transactions and balance for one bank connection.
+ *
+ * Auth-checks the user via RLS, then runs the actual sync with the
+ * service-role client because writing to `sync_runs` and bulk-upserting
+ * transactions plays nicer without the per-statement RLS overhead.
+ */
+export async function syncBank(
+  connectionId: string,
+): Promise<{ added: number; warnings: string[] } | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  // Ownership check via RLS — if the row is invisible the user is not allowed.
+  const { data: conn, error: ownErr } = await supabase
+    .from("bank_connections")
+    .select("id, household_id")
+    .eq("id", connectionId)
+    .maybeSingle();
+  if (ownErr) return { error: ownErr.message };
+  if (!conn) return { error: "Bank connection not found" };
+
+  const service = createServiceClient();
+
+  try {
+    const result = await syncBankConnection(service, connectionId);
+    revalidatePath("/accounts");
+    revalidatePath("/transactions");
+    revalidatePath("/");
+    if (result.errors.length && !result.partialSuccess) {
+      return { error: result.errors.join("; ") };
+    }
+    return { added: result.added, warnings: result.errors };
+  } catch (e) {
+    const detail =
+      e instanceof EnableBankingError
+        ? `${e.status} ${typeof e.body === "string" ? e.body : JSON.stringify(e.body)}`
+        : (e as Error).message;
+    return { error: detail };
+  }
 }

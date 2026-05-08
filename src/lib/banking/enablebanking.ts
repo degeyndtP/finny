@@ -119,6 +119,8 @@ export interface EbTransaction {
   value_date?: string;
   transaction_date?: string;
   transaction_amount: { amount: string; currency: string };
+  /** Some banks report a positive `transaction_amount` and rely on this flag for the sign. */
+  credit_debit_indicator?: "CRDT" | "DBIT";
   creditor?: { name?: string };
   creditor_account?: EbAccountIdentifier;
   debtor?: { name?: string };
