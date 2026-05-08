@@ -8,7 +8,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -38,9 +37,9 @@ export function UserMenu({ email }: { email: string }) {
           {initial}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-48">
-          <DropdownMenuLabel className="font-normal text-muted-foreground">
+          <div className="px-2 py-1.5 text-xs text-muted-foreground truncate">
             {email}
-          </DropdownMenuLabel>
+          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => setPwOpen(true)}>
             <KeyRound className="mr-2 size-4" />
