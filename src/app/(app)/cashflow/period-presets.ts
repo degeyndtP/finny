@@ -60,3 +60,51 @@ export function matchPreset(from: string, to: string): Preset {
   }
   return "custom";
 }
+
+/**
+ * For a given period, return the "prior equivalent" range so we can compute
+ * a vs-prior delta on KPIs.
+ *
+ *   mtd       → same day-of-month range last month
+ *   ytd       → Jan 1 to (today, last year)
+ *   lastyear  → year before last year
+ *   last30    → 30 days before the current 30-day window
+ *   custom    → shift the entire range back by its own length
+ */
+export function priorPeriod(
+  fromIso: string,
+  toIso: string,
+): { from: string; to: string; label: string } {
+  const preset = matchPreset(fromIso, toIso);
+  const from = new Date(fromIso);
+  const to = new Date(toIso);
+
+  if (preset === "mtd") {
+    const priorFrom = new Date(from.getFullYear(), from.getMonth() - 1, from.getDate());
+    const priorTo = new Date(to.getFullYear(), to.getMonth() - 1, to.getDate());
+    return { from: isoDate(priorFrom), to: isoDate(priorTo), label: "previous month, same range" };
+  }
+
+  if (preset === "ytd") {
+    const priorFrom = new Date(from.getFullYear() - 1, 0, 1);
+    const priorTo = new Date(to.getFullYear() - 1, to.getMonth(), to.getDate());
+    return { from: isoDate(priorFrom), to: isoDate(priorTo), label: "same range, last year" };
+  }
+
+  if (preset === "lastyear") {
+    const priorFrom = new Date(from.getFullYear() - 1, 0, 1);
+    const priorTo = new Date(from.getFullYear() - 1, 11, 31);
+    return { from: isoDate(priorFrom), to: isoDate(priorTo), label: "the year before" };
+  }
+
+  // last30 or custom → shift back by the period's own length.
+  const oneDay = 24 * 60 * 60 * 1000;
+  const lengthDays = Math.floor((to.getTime() - from.getTime()) / oneDay) + 1;
+  const priorTo = new Date(from.getTime() - oneDay);
+  const priorFrom = new Date(priorTo.getTime() - (lengthDays - 1) * oneDay);
+  return {
+    from: isoDate(priorFrom),
+    to: isoDate(priorTo),
+    label: `previous ${lengthDays} days`,
+  };
+}

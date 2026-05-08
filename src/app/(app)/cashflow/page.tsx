@@ -16,7 +16,7 @@ import { projectBalance, type PlannedCashflow, type Recurrence } from "@/lib/for
 import { detectRecurring } from "@/lib/recurring";
 import { formatDate, formatMoney } from "@/lib/format";
 import { AccountSelector, type AccountOption } from "./account-selector";
-import { rangeForPreset } from "./period-presets";
+import { priorPeriod, rangeForPreset } from "./period-presets";
 import { PeriodSelector } from "./period-selector";
 import {
   RecurringSection,
@@ -87,6 +87,15 @@ export default async function CashflowPage({
     .lte("booking_date", to);
   if (accountFilter) periodTxQuery.eq("account_id", accountFilter);
 
+  // Prior period for delta KPIs.
+  const prior = priorPeriod(from, to);
+  const priorTxQuery = supabase
+    .from("transactions")
+    .select("amount, is_internal_transfer")
+    .gte("booking_date", prior.from)
+    .lte("booking_date", prior.to);
+  if (accountFilter) priorTxQuery.eq("account_id", accountFilter);
+
   const detectionTxQuery = supabase
     .from("transactions")
     .select(
@@ -104,6 +113,7 @@ export default async function CashflowPage({
 
   const [
     { data: txRaw },
+    { data: priorTxRaw },
     { data: catsRaw },
     { data: detectionTxRaw },
     { data: accountsRaw },
@@ -111,6 +121,7 @@ export default async function CashflowPage({
     { data: plannedRaw },
   ] = await Promise.all([
     periodTxQuery,
+    priorTxQuery,
     supabase
       .from("categories")
       .select("id, name, kind, color")
@@ -145,6 +156,39 @@ export default async function CashflowPage({
   const categoryById = new Map(categories.map((c) => [c.id, c]));
 
   const totals = periodTotals(transactions);
+
+  // Prior totals — used for vs-prior-period KPI deltas.
+  const priorTransactions: MinTx[] = (priorTxRaw ?? []).map((t) => ({
+    booking_date: "",
+    amount: Number(t.amount),
+    counterparty_name: null,
+    counterparty_iban: null,
+    category_id: null,
+    is_internal_transfer: t.is_internal_transfer,
+  }));
+  const priorTotals = periodTotals(priorTransactions);
+
+  function buildDelta(
+    current: number,
+    priorVal: number,
+    direction: "higher-is-better" | "lower-is-better",
+  ): {
+    priorFormatted: string;
+    pct: number | null;
+    better: boolean;
+    priorLabel: string;
+  } {
+    const pct = priorVal === 0 ? null : ((current - priorVal) / Math.abs(priorVal)) * 100;
+    const change = current - priorVal;
+    const better = direction === "higher-is-better" ? change >= 0 : change <= 0;
+    return {
+      priorFormatted: formatMoney(priorVal, currency),
+      pct,
+      better,
+      priorLabel: prior.label,
+    };
+  }
+
   const granularity = pickGranularity(from, to);
   const { buckets } = bucketTransactions(transactions, {
     fromIso: from,
@@ -286,16 +330,19 @@ export default async function CashflowPage({
           label="Income"
           value={formatMoney(totals.income, currency)}
           tone="positive"
+          delta={buildDelta(totals.income, priorTotals.income, "higher-is-better")}
         />
         <Kpi
           label="Expenses"
           value={formatMoney(totals.expense, currency)}
           tone="negative"
+          delta={buildDelta(totals.expense, priorTotals.expense, "lower-is-better")}
         />
         <Kpi
           label="Net"
           value={formatMoney(totals.net, currency)}
           tone={totals.net >= 0 ? "positive" : "negative"}
+          delta={buildDelta(totals.net, priorTotals.net, "higher-is-better")}
         />
       </div>
 
@@ -434,22 +481,53 @@ function Kpi({
   label,
   value,
   tone,
+  delta,
 }: {
   label: string;
   value: string;
   tone: "positive" | "negative";
+  delta?: {
+    /** Value of the comparison period, formatted (e.g. "€1,234.56"). */
+    priorFormatted: string;
+    /** Percentage change vs prior, e.g. +12.3 or -5. Null when prior was 0. */
+    pct: number | null;
+    /** True when the move is favourable (e.g. expenses going down). */
+    better: boolean;
+    priorLabel: string;
+  };
 }) {
   const toneClass =
     tone === "positive"
       ? "text-emerald-600 dark:text-emerald-400"
       : "text-rose-600 dark:text-rose-400";
+  const deltaClass = delta?.better
+    ? "text-emerald-600 dark:text-emerald-400"
+    : "text-rose-600 dark:text-rose-400";
+  const arrow =
+    delta?.pct == null ? "" : delta.pct > 0 ? "↑" : delta.pct < 0 ? "↓" : "";
+
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardDescription>{label}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-1">
         <div className={`text-2xl font-semibold tabular-nums ${toneClass}`}>{value}</div>
+        {delta ? (
+          <div className="text-xs text-muted-foreground">
+            {delta.pct !== null ? (
+              <span className={`mr-1 tabular-nums ${deltaClass}`}>
+                {arrow}
+                {Math.abs(delta.pct) >= 999
+                  ? ">999"
+                  : Math.abs(delta.pct).toFixed(0)}
+                %
+              </span>
+            ) : null}
+            <span>vs {delta.priorFormatted}</span>{" "}
+            <span className="text-muted-foreground/70">({delta.priorLabel})</span>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
