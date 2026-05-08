@@ -75,7 +75,7 @@ export default async function OverviewPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
         <p className="text-sm text-muted-foreground">
-          Month-to-date snapshot and a 90-day balance trend.
+          Month-to-date snapshot and a {HISTORY_DAYS}-day balance trend.
         </p>
       </div>
 
@@ -88,8 +88,10 @@ export default async function OverviewPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Cashflow</CardTitle>
-          <CardDescription>Daily balance over the last {HISTORY_DAYS} days.</CardDescription>
+          <CardTitle>Balance</CardTitle>
+          <CardDescription>
+            Total balance across all accounts over the last {HISTORY_DAYS} days.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {cashflowSeries.length > 1 ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -19,10 +19,12 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
+  const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") ?? "/";
 
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -33,6 +35,20 @@ function LoginForm() {
     setSubmitting(true);
     const supabase = createClient();
 
+    if (password) {
+      // Password sign-in
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setSubmitting(false);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      router.replace(next);
+      router.refresh();
+      return;
+    }
+
+    // Fallback: passwordless magic link
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -48,13 +64,30 @@ function LoginForm() {
     toast.success("Check your inbox for a sign-in link.");
   }
 
+  async function onForgotPassword() {
+    if (!email) {
+      toast.error("Enter your email first");
+      return;
+    }
+    const supabase = createClient();
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo,
+    });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Password reset link sent to your inbox.");
+  }
+
   return (
     <div className="flex flex-1 items-center justify-center p-6">
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Welcome to Finny</CardTitle>
           <CardDescription>
-            We&apos;ll email you a one-click sign-in link.
+            Sign in with your password, or leave it empty to receive a magic link.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -83,8 +116,36 @@ function LoginForm() {
                   disabled={submitting}
                 />
               </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <button
+                    type="button"
+                    onClick={onForgotPassword}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+                    disabled={submitting}
+                  >
+                    Forgot?
+                  </button>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Leave empty for a magic link"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={submitting}
+                />
+              </div>
               <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? "Sending…" : "Send magic link"}
+                {submitting
+                  ? password
+                    ? "Signing in…"
+                    : "Sending…"
+                  : password
+                    ? "Sign in"
+                    : "Send magic link"}
               </Button>
             </form>
           )}
