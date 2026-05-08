@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ForecastChart } from "@/components/forecast-chart";
 import { TotalsChart } from "@/components/totals-chart";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -9,8 +10,18 @@ import {
   totalsByCounterparty,
   type MinTx,
 } from "@/lib/cashflow";
+import { projectBalance, type PlannedCashflow, type Recurrence } from "@/lib/forecast";
+import { detectRecurring } from "@/lib/recurring";
 import { formatDate, formatMoney } from "@/lib/format";
 import { PeriodSelector, rangeForPreset } from "./period-selector";
+import {
+  RecurringSection,
+  type PlannedRow,
+  type SuggestionRow,
+} from "./recurring-section";
+
+const DETECTION_WINDOW_DAYS = 180;
+const FORECAST_WINDOW_DAYS = 90;
 
 const GRANULARITY_LABEL = {
   day: "daily",
@@ -45,7 +56,26 @@ export default async function CashflowPage({
   const from = params.from ?? def.from;
   const to = params.to ?? def.to;
 
-  const [{ data: txRaw }, { data: catsRaw }] = await Promise.all([
+  const today = new Date();
+  const todayIso = today.toISOString().slice(0, 10);
+  const detectionFromIso = new Date(
+    today.getTime() - DETECTION_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  )
+    .toISOString()
+    .slice(0, 10);
+  const forecastToIso = new Date(
+    today.getTime() + FORECAST_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  )
+    .toISOString()
+    .slice(0, 10);
+
+  const [
+    { data: txRaw },
+    { data: catsRaw },
+    { data: detectionTxRaw },
+    { data: accountsRaw },
+    { data: plannedRaw },
+  ] = await Promise.all([
     supabase
       .from("transactions")
       .select(
@@ -59,6 +89,21 @@ export default async function CashflowPage({
       .order("kind")
       .order("sort_order")
       .order("name"),
+    supabase
+      .from("transactions")
+      .select(
+        "booking_date, amount, counterparty_name, counterparty_iban, category_id, is_internal_transfer",
+      )
+      .gte("booking_date", detectionFromIso)
+      .lte("booking_date", todayIso),
+    supabase
+      .from("accounts")
+      .select("balance_amount")
+      .eq("archived", false),
+    supabase
+      .from("planned_cashflows")
+      .select("id, description, amount, due_date, recurrence, recurrence_until")
+      .order("due_date", { ascending: true }),
   ]);
 
   const transactions: MinTx[] = (txRaw ?? []).map((t) => ({
@@ -103,6 +148,70 @@ export default async function CashflowPage({
 
   // Top counterparties — max 15 by absolute value.
   const counterparties = totalsByCounterparty(transactions).slice(0, 15);
+
+  // ---------- Recurring detection + forecast (independent of period) -------
+  const detectionTxs: MinTx[] = (detectionTxRaw ?? []).map((t) => ({
+    booking_date: t.booking_date,
+    amount: Number(t.amount),
+    counterparty_name: t.counterparty_name,
+    counterparty_iban: t.counterparty_iban,
+    category_id: t.category_id,
+    is_internal_transfer: t.is_internal_transfer,
+  }));
+
+  const planned: PlannedRow[] = (plannedRaw ?? []).map((p) => ({
+    id: p.id,
+    description: p.description,
+    amount: Number(p.amount),
+    due_date: p.due_date,
+    recurrence: p.recurrence as PlannedRow["recurrence"],
+    recurrence_until: p.recurrence_until,
+  }));
+
+  // Skip suggestions for descriptions that are already planned (case-insensitive).
+  const plannedKeys = new Set(
+    planned.map((p) => p.description.trim().toLowerCase()),
+  );
+  const detected = detectRecurring(detectionTxs, { excludeKeys: plannedKeys });
+  const suggestions: SuggestionRow[] = detected.map((d) => ({
+    key: d.key,
+    display: d.display,
+    cadence: d.cadence,
+    averageAmount: Math.round(d.averageAmount * 100) / 100,
+    occurrences: d.occurrences,
+    lastDate: d.lastDate,
+    nextPredicted: d.nextPredicted,
+    category_id: d.category_id,
+  }));
+
+  const startingBalance = (accountsRaw ?? []).reduce(
+    (s, a) => s + Number(a.balance_amount ?? 0),
+    0,
+  );
+
+  // Project the balance forward using ONLY recurring planned cashflows so the
+  // chart represents "what will happen if nothing else changes".
+  const forecastPlans: PlannedCashflow[] = planned.map((p) => ({
+    id: p.id,
+    description: p.description,
+    amount: p.amount,
+    due_date: p.due_date,
+    recurrence: p.recurrence as Recurrence,
+    recurrence_until: p.recurrence_until,
+  }));
+  const { points: forecastPoints, occurrences: forecastOccurrences } =
+    projectBalance({
+      startingBalance,
+      plans: forecastPlans,
+      fromIso: todayIso,
+      toIso: forecastToIso,
+    });
+
+  const projectedNet = forecastOccurrences.reduce(
+    (s, o) => s + o.amount,
+    0,
+  );
+  const projectedEnd = startingBalance + projectedNet;
 
   const periodLabel = `${formatDate(from)} → ${formatDate(to)}`;
 
@@ -214,6 +323,48 @@ export default async function CashflowPage({
                 );
               })}
             </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="space-y-1 pt-4">
+        <h2 className="text-xl font-semibold tracking-tight">Looking ahead</h2>
+        <p className="text-sm text-muted-foreground">
+          Detected recurring patterns from the last {DETECTION_WINDOW_DAYS} days
+          and a {FORECAST_WINDOW_DAYS}-day projection of your balance.
+        </p>
+      </div>
+
+      <RecurringSection
+        suggestions={suggestions}
+        planned={planned}
+        currency={currency}
+      />
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+          <div className="space-y-1.5">
+            <CardTitle>Forecast</CardTitle>
+            <CardDescription>
+              Projection assumes only your planned cashflows fire. Today&apos;s
+              balance: {formatMoney(startingBalance, currency)} · in{" "}
+              {FORECAST_WINDOW_DAYS} days: {formatMoney(projectedEnd, currency)}{" "}
+              ({formatMoney(projectedNet, currency)} net).
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {planned.length === 0 ? (
+            <div className="grid h-64 place-items-center text-sm text-muted-foreground text-center px-6">
+              No planned cashflows yet. Accept a suggestion above (or none was
+              detected) — the forecast becomes useful from the first plan.
+            </div>
+          ) : (
+            <ForecastChart
+              data={forecastPoints}
+              today={todayIso}
+              currency={currency}
+            />
           )}
         </CardContent>
       </Card>
