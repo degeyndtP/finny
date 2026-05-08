@@ -134,7 +134,7 @@ async function syncOneAccount(
       date_from: dateFrom,
       date_to: todayIso,
       continuation_key: continuationKey,
-      transaction_status: "booked",
+      transaction_status: "BOOK",
     });
 
     if (res.transactions?.length) {

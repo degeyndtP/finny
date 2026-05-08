@@ -206,7 +206,8 @@ export const enableBanking = {
       date_from?: string;
       date_to?: string;
       continuation_key?: string;
-      transaction_status?: "booked" | "pending" | "all";
+      /** Berlin Group / Enable Banking transaction status codes. */
+      transaction_status?: "BOOK" | "PDNG" | "HOLD" | "CNCL" | "RJCT" | "SCHD" | "OTHR";
     } = {},
   ): Promise<EbTransactionsResponse> {
     const qs = new URLSearchParams();
