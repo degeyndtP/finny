@@ -13,7 +13,8 @@ import {
 import { projectBalance, type PlannedCashflow, type Recurrence } from "@/lib/forecast";
 import { detectRecurring } from "@/lib/recurring";
 import { formatDate, formatMoney } from "@/lib/format";
-import { PeriodSelector, rangeForPreset } from "./period-selector";
+import { rangeForPreset } from "./period-presets";
+import { PeriodSelector } from "./period-selector";
 import {
   RecurringSection,
   type PlannedRow,
