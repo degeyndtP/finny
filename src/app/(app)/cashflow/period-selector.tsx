@@ -23,7 +23,9 @@ export function PeriodSelector({ from, to }: Props) {
   const [customFrom, setCustomFrom] = useState(from);
   const [customTo, setCustomTo] = useState(to);
 
-  const active = matchPreset(from, to);
+  const urlActive = matchPreset(from, to);
+  const [customExpanded, setCustomExpanded] = useState(urlActive === "custom");
+  const active: Preset = customExpanded ? "custom" : urlActive;
 
   function pushRange(nextFrom: string, nextTo: string) {
     const params = new URLSearchParams(searchParams);
@@ -35,7 +37,11 @@ export function PeriodSelector({ from, to }: Props) {
   }
 
   function applyPreset(p: Preset) {
-    if (p === "custom") return; // requires inputs
+    if (p === "custom") {
+      setCustomExpanded(true);
+      return;
+    }
+    setCustomExpanded(false);
     const r = rangeForPreset(p);
     pushRange(r.from, r.to);
   }

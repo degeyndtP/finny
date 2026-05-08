@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ForecastChart } from "@/components/forecast-chart";
 import { TotalsChart } from "@/components/totals-chart";
@@ -127,17 +129,26 @@ export default async function CashflowPage({
   });
 
   // Category breakdown — split into expense/income lists.
+  type BreakdownRow = {
+    /** category id, or "uncategorised" sentinel — used for /transactions filter link */
+    filterValue: string;
+    name: string;
+    color: string;
+    amount: number;
+    pct: number;
+  };
   const catSums = totalsByCategory(transactions);
-  const expenseRows: { name: string; color: string; amount: number; pct: number }[] = [];
-  const incomeRows: { name: string; color: string; amount: number; pct: number }[] = [];
+  const expenseRows: BreakdownRow[] = [];
+  const incomeRows: BreakdownRow[] = [];
   for (const sum of catSums) {
     const cat = sum.category_id ? categoryById.get(sum.category_id) : null;
     const name = cat?.name ?? "Uncategorised";
     const color = cat?.color ?? "#6B7280";
+    const filterValue = sum.category_id ?? "uncategorised";
     if (sum.total < 0) {
-      expenseRows.push({ name, color, amount: -sum.total, pct: 0 });
+      expenseRows.push({ filterValue, name, color, amount: -sum.total, pct: 0 });
     } else if (sum.total > 0) {
-      incomeRows.push({ name, color, amount: sum.total, pct: 0 });
+      incomeRows.push({ filterValue, name, color, amount: sum.total, pct: 0 });
     }
   }
   expenseRows.sort((a, b) => b.amount - a.amount);
@@ -301,25 +312,27 @@ export default async function CashflowPage({
               {counterparties.map((c) => {
                 const isOut = c.total < 0;
                 return (
-                  <li
-                    key={c.key}
-                    className="flex items-center justify-between gap-4 py-3 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">{c.key}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {c.count} transaction{c.count === 1 ? "" : "s"}
-                      </div>
-                    </div>
-                    <div
-                      className={`tabular-nums shrink-0 ${
-                        isOut
-                          ? "text-rose-600 dark:text-rose-400"
-                          : "text-emerald-600 dark:text-emerald-400"
-                      }`}
+                  <li key={c.key}>
+                    <Link
+                      href={`/transactions?counterparty=${encodeURIComponent(c.key)}`}
+                      className="-mx-2 flex items-center justify-between gap-4 rounded-md px-2 py-3 text-sm transition-colors hover:bg-muted/50"
                     >
-                      {formatMoney(Math.abs(c.total), currency)}
-                    </div>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{c.key}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {c.count} transaction{c.count === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                      <div
+                        className={`tabular-nums shrink-0 ${
+                          isOut
+                            ? "text-rose-600 dark:text-rose-400"
+                            : "text-emerald-600 dark:text-emerald-400"
+                        }`}
+                      >
+                        {formatMoney(Math.abs(c.total), currency)}
+                      </div>
+                    </Link>
                   </li>
                 );
               })}
@@ -406,7 +419,7 @@ function CategoryBreakdownCard({
   empty,
 }: {
   title: string;
-  rows: { name: string; color: string; amount: number; pct: number }[];
+  rows: { filterValue: string; name: string; color: string; amount: number; pct: number }[];
   currency: string;
   tone: "positive" | "negative";
   empty: string;
@@ -424,31 +437,36 @@ function CategoryBreakdownCard({
         {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">{empty}</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-1">
             {rows.map((r) => (
-              <li key={r.name} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      aria-hidden
-                      className="size-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: r.color }}
-                    />
-                    <span className="truncate">{r.name}</span>
+              <li key={r.filterValue}>
+                <Link
+                  href={`/transactions?category=${encodeURIComponent(r.filterValue)}`}
+                  className="-mx-2 block space-y-1 rounded-md px-2 py-2 transition-colors hover:bg-muted/50"
+                >
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        aria-hidden
+                        className="size-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: r.color }}
+                      />
+                      <span className="truncate">{r.name}</span>
+                    </div>
+                    <span className={`tabular-nums shrink-0 ${valueClass}`}>
+                      {formatMoney(r.amount, currency)}
+                    </span>
                   </div>
-                  <span className={`tabular-nums shrink-0 ${valueClass}`}>
-                    {formatMoney(r.amount, currency)}
-                  </span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-muted">
-                  <div
-                    className="h-1.5 rounded-full transition-all"
-                    style={{
-                      width: `${Math.max(2, r.pct)}%`,
-                      backgroundColor: r.color,
-                    }}
-                  />
-                </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted">
+                    <div
+                      className="h-1.5 rounded-full transition-all"
+                      style={{
+                        width: `${Math.max(2, r.pct)}%`,
+                        backgroundColor: r.color,
+                      }}
+                    />
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>
