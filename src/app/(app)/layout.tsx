@@ -9,6 +9,7 @@ const NAV = [
   { href: "/transactions", label: "Transactions" },
   { href: "/cashflow", label: "Cashflow" },
   { href: "/accounts", label: "Accounts" },
+  { href: "/settings/categories", label: "Settings" },
 ];
 
 export default async function AppLayout({

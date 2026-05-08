@@ -9,11 +9,12 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatMoney } from "@/lib/format";
+import { CategoryCell, type CategoryOption } from "./category-cell";
 
 export default async function TransactionsPage() {
   const supabase = await createClient();
 
-  const [{ data: transactions }, { data: categories }] = await Promise.all([
+  const [{ data: transactions }, { data: categoriesRaw }] = await Promise.all([
     supabase
       .from("transactions")
       .select(
@@ -21,10 +22,16 @@ export default async function TransactionsPage() {
       )
       .order("booking_date", { ascending: false })
       .limit(100),
-    supabase.from("categories").select("id, name, color"),
+    supabase
+      .from("categories")
+      .select("id, name, kind, color")
+      .order("kind")
+      .order("sort_order")
+      .order("name"),
   ]);
 
-  const categoryById = new Map(categories?.map((c) => [c.id, c]) ?? []);
+  // DB CHECK constrains kind to one of three values; narrow the type.
+  const categories = (categoriesRaw ?? []) as CategoryOption[];
 
   return (
     <div className="space-y-6">
@@ -50,7 +57,6 @@ export default async function TransactionsPage() {
             <TableBody>
               {transactions.map((tx) => {
                 const amount = Number(tx.amount);
-                const cat = tx.category_id ? categoryById.get(tx.category_id) : null;
                 return (
                   <TableRow key={tx.id}>
                     <TableCell className="text-muted-foreground tabular-nums">
@@ -62,7 +68,13 @@ export default async function TransactionsPage() {
                     <TableCell className="max-w-sm truncate text-muted-foreground">
                       {tx.description ?? tx.remittance_info ?? "—"}
                     </TableCell>
-                    <TableCell>{cat?.name ?? "—"}</TableCell>
+                    <TableCell className="p-1">
+                      <CategoryCell
+                        transactionId={tx.id}
+                        currentCategoryId={tx.category_id}
+                        categories={categories}
+                      />
+                    </TableCell>
                     <TableCell
                       className={`text-right tabular-nums ${
                         amount < 0

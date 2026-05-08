@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { applyRulesToUncategorised } from "./categorize";
 import { enableBanking, EnableBankingError } from "./enablebanking";
 import { normalizeTransaction } from "./normalize";
 import type { Database } from "@/lib/supabase/database.types";
@@ -56,18 +57,36 @@ export async function syncBankConnection(
   let totalAdded = 0;
   const errors: string[] = [];
   const successes: string[] = [];
+  const syncedAccountIds: string[] = [];
 
   for (const acc of accounts ?? []) {
     try {
       const added = await syncOneAccount(supabase, acc, conn.household_id);
       totalAdded += added;
       successes.push(acc.external_account_id);
+      syncedAccountIds.push(acc.id);
     } catch (e) {
       const detail =
         e instanceof EnableBankingError
           ? `${e.status} ${typeof e.body === "string" ? e.body : JSON.stringify(e.body)}`
           : (e as Error).message;
       errors.push(`${acc.external_account_id}: ${detail}`);
+    }
+  }
+
+  // Auto-categorise newly imported transactions on the synced accounts.
+  if (syncedAccountIds.length > 0) {
+    try {
+      await applyRulesToUncategorised(supabase, {
+        household_id: conn.household_id,
+        only_account_ids: syncedAccountIds,
+      });
+    } catch (e) {
+      // Categorisation failure is non-fatal; we still want the sync to count.
+      console.warn(
+        "[sync] applyRulesToUncategorised failed:",
+        e instanceof Error ? e.message : e,
+      );
     }
   }
 
