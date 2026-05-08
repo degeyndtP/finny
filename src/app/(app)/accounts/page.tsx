@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatMoney } from "@/lib/format";
+import { DisconnectButton } from "./disconnect-button";
 
 export default async function AccountsPage() {
   const supabase = await createClient();
@@ -47,8 +48,8 @@ export default async function AccountsPage() {
           <CardHeader>
             <CardTitle>No bank connected yet</CardTitle>
             <CardDescription>
-              Use GoCardless Bank Account Data to securely link a Belgian or EU
-              bank. Read-only PSD2 access — no payments.
+              Use Enable Banking to securely link a Belgian or EU bank.
+              Read-only PSD2 access — no payments.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -64,20 +65,24 @@ export default async function AccountsPage() {
               accounts?.filter((a) => a.bank_connection_id === conn.id) ?? [];
             return (
               <Card key={conn.id}>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <CardTitle className="flex items-center gap-2">
-                      {conn.institution_name}
-                    </CardTitle>
-                    <Badge variant={conn.status === "linked" ? "default" : "secondary"}>
-                      {conn.status}
-                    </Badge>
+                <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-3">
+                      <CardTitle>{conn.institution_name}</CardTitle>
+                      <Badge variant={conn.status === "linked" ? "default" : "secondary"}>
+                        {conn.status}
+                      </Badge>
+                    </div>
+                    <CardDescription>
+                      {conn.expires_at
+                        ? `Consent expires ${formatDate(conn.expires_at)}`
+                        : "Awaiting consent"}
+                    </CardDescription>
                   </div>
-                  <CardDescription>
-                    {conn.expires_at
-                      ? `Consent expires ${formatDate(conn.expires_at)}`
-                      : "Awaiting consent"}
-                  </CardDescription>
+                  <DisconnectButton
+                    connectionId={conn.id}
+                    institutionName={conn.institution_name}
+                  />
                 </CardHeader>
                 <CardContent>
                   {connAccounts.length === 0 ? (
