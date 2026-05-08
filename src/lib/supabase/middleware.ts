@@ -29,14 +29,16 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Only the login screen and the Supabase OTP/OAuth exchange route are
-  // public. /auth/banking/callback (Enable Banking PSD2 callback) requires
-  // an authenticated session — the user is sent there after consenting at
-  // their bank, while still logged in to Finny.
+  // Only the login screen, the Supabase OTP/OAuth exchange route, and the
+  // public legal pages are accessible without a session. /auth/banking/callback
+  // (Enable Banking PSD2 callback) requires authentication — the user is sent
+  // there after consenting at their bank, while still logged in to Finny.
   const isLogin = pathname === "/login";
   const isSupabaseAuthCallback = pathname === "/auth/callback";
+  const isLegalPage = pathname === "/privacy" || pathname === "/terms";
   const isAuthPage = isLogin || isSupabaseAuthCallback;
-  const isPublic = isAuthPage || pathname.startsWith("/_next") || pathname === "/favicon.ico";
+  const isPublic =
+    isAuthPage || isLegalPage || pathname.startsWith("/_next") || pathname === "/favicon.ico";
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
