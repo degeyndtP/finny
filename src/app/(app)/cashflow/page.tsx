@@ -15,6 +15,7 @@ import {
 import { projectBalance, type PlannedCashflow, type Recurrence } from "@/lib/forecast";
 import { detectRecurring } from "@/lib/recurring";
 import { formatDate, formatMoney } from "@/lib/format";
+import { AccountSelector, type AccountOption } from "./account-selector";
 import { rangeForPreset } from "./period-presets";
 import { PeriodSelector } from "./period-selector";
 import {
@@ -22,6 +23,10 @@ import {
   type PlannedRow,
   type SuggestionRow,
 } from "./recurring-section";
+import type {
+  PlannedDialogAccount,
+  PlannedDialogCategory,
+} from "./planned-form-dialog";
 
 const DETECTION_WINDOW_DAYS = 180;
 const FORECAST_WINDOW_DAYS = 90;
@@ -42,7 +47,7 @@ interface CategoryLookup {
 export default async function CashflowPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; account?: string }>;
 }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -58,6 +63,7 @@ export default async function CashflowPage({
   const def = rangeForPreset("mtd");
   const from = params.from ?? def.from;
   const to = params.to ?? def.to;
+  const accountFilter = params.account?.trim() ?? "";
 
   const today = new Date();
   const todayIso = today.toISOString().slice(0, 10);
@@ -72,40 +78,58 @@ export default async function CashflowPage({
     .toISOString()
     .slice(0, 10);
 
+  const periodTxQuery = supabase
+    .from("transactions")
+    .select(
+      "booking_date, amount, counterparty_name, counterparty_iban, category_id, is_internal_transfer",
+    )
+    .gte("booking_date", from)
+    .lte("booking_date", to);
+  if (accountFilter) periodTxQuery.eq("account_id", accountFilter);
+
+  const detectionTxQuery = supabase
+    .from("transactions")
+    .select(
+      "booking_date, amount, counterparty_name, counterparty_iban, category_id, is_internal_transfer",
+    )
+    .gte("booking_date", detectionFromIso)
+    .lte("booking_date", todayIso);
+  if (accountFilter) detectionTxQuery.eq("account_id", accountFilter);
+
+  const accountsBalanceQuery = supabase
+    .from("accounts")
+    .select("id, display_name, iban, balance_amount")
+    .eq("archived", false);
+  if (accountFilter) accountsBalanceQuery.eq("id", accountFilter);
+
   const [
     { data: txRaw },
     { data: catsRaw },
     { data: detectionTxRaw },
     { data: accountsRaw },
+    { data: allAccountsRaw },
     { data: plannedRaw },
   ] = await Promise.all([
-    supabase
-      .from("transactions")
-      .select(
-        "booking_date, amount, counterparty_name, counterparty_iban, category_id, is_internal_transfer",
-      )
-      .gte("booking_date", from)
-      .lte("booking_date", to),
+    periodTxQuery,
     supabase
       .from("categories")
       .select("id, name, kind, color")
       .order("kind")
       .order("sort_order")
       .order("name"),
-    supabase
-      .from("transactions")
-      .select(
-        "booking_date, amount, counterparty_name, counterparty_iban, category_id, is_internal_transfer",
-      )
-      .gte("booking_date", detectionFromIso)
-      .lte("booking_date", todayIso),
+    detectionTxQuery,
+    accountsBalanceQuery,
+    // Always need the FULL list of accounts for the selector, regardless of filter.
     supabase
       .from("accounts")
-      .select("balance_amount")
-      .eq("archived", false),
+      .select("id, display_name, iban")
+      .eq("archived", false)
+      .order("display_name"),
     supabase
       .from("planned_cashflows")
-      .select("id, description, amount, due_date, recurrence, recurrence_until")
+      .select(
+        "id, description, amount, due_date, recurrence, recurrence_until, category_id, account_id",
+      )
       .order("due_date", { ascending: true }),
   ]);
 
@@ -178,6 +202,8 @@ export default async function CashflowPage({
     due_date: p.due_date,
     recurrence: p.recurrence as PlannedRow["recurrence"],
     recurrence_until: p.recurrence_until,
+    category_id: p.category_id,
+    account_id: p.account_id,
   }));
 
   // Skip suggestions for descriptions that are already planned (case-insensitive).
@@ -227,14 +253,30 @@ export default async function CashflowPage({
 
   const periodLabel = `${formatDate(from)} → ${formatDate(to)}`;
 
+  // Account selector: full list of accounts with friendly labels.
+  const accountOptions: AccountOption[] = (allAccountsRaw ?? []).map((a) => ({
+    id: a.id,
+    label: a.display_name ?? a.iban ?? "Account",
+  }));
+  // Categories for the planned-form dialog (with kind narrowed).
+  const dialogCategories = (catsRaw ?? []) as PlannedDialogCategory[];
+  const dialogAccounts: PlannedDialogAccount[] = (allAccountsRaw ?? []).map((a) => ({
+    id: a.id,
+    display_name: a.display_name,
+    iban: a.iban,
+  }));
+
   return (
     <div className="space-y-8">
       <div className="space-y-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cashflow</h1>
-          <p className="text-sm text-muted-foreground">
-            Income, expenses and net for {periodLabel} · {GRANULARITY_LABEL[granularity]} buckets
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Cashflow</h1>
+            <p className="text-sm text-muted-foreground">
+              Income, expenses and net for {periodLabel} · {GRANULARITY_LABEL[granularity]} buckets
+            </p>
+          </div>
+          <AccountSelector current={accountFilter} accounts={accountOptions} />
         </div>
         <PeriodSelector from={from} to={to} />
       </div>
@@ -353,6 +395,8 @@ export default async function CashflowPage({
         suggestions={suggestions}
         planned={planned}
         currency={currency}
+        categories={dialogCategories}
+        accounts={dialogAccounts}
       />
 
       <Card>
