@@ -11,7 +11,9 @@ const NAV: NavItem[] = [
   { href: "/transactions", label: "Transactions" },
   { href: "/cashflow", label: "Cashflow" },
   { href: "/accounts", label: "Accounts" },
-  { href: "/settings", label: "Settings" },
+  // Link straight to the first sub-page so we avoid an extra server redirect,
+  // but keep the tab active for any /settings/* path.
+  { href: "/settings/categories", label: "Settings", match: "/settings" },
 ];
 
 export default async function AppLayout({
