@@ -1,28 +1,18 @@
-import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatMoney } from "@/lib/format";
-import { CategoryCell, type CategoryOption } from "./category-cell";
+import { type CategoryOption } from "./category-cell";
 import {
   TransactionsFilters,
   type FilterAccount,
   type FilterCategory,
 } from "./transactions-filters";
+import {
+  TransactionsTable,
+  type SortDir,
+  type SortKey,
+} from "./transactions-table";
 
 const PAGE_LIMIT = 200;
-
-type SortKey = "booking_date" | "amount";
-type SortDir = "asc" | "desc";
 
 interface SearchParams {
   q?: string;
@@ -145,66 +135,12 @@ export default async function TransactionsPage({
           </CardHeader>
         </Card>
       ) : transactions?.length ? (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-32">
-                  <SortLink sort="booking_date" current={{ sort, dir }} params={params}>
-                    Date
-                  </SortLink>
-                </TableHead>
-                <TableHead>Counterparty</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">
-                  <SortLink
-                    sort="amount"
-                    current={{ sort, dir }}
-                    params={params}
-                    align="right"
-                  >
-                    Amount
-                  </SortLink>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transactions.map((tx) => {
-                const amount = Number(tx.amount);
-                return (
-                  <TableRow key={tx.id}>
-                    <TableCell className="text-muted-foreground tabular-nums">
-                      {formatDate(tx.booking_date)}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {tx.counterparty_name ?? "—"}
-                    </TableCell>
-                    <TableCell className="max-w-sm truncate text-muted-foreground">
-                      {tx.description ?? tx.remittance_info ?? "—"}
-                    </TableCell>
-                    <TableCell className="p-1">
-                      <CategoryCell
-                        transactionId={tx.id}
-                        currentCategoryId={tx.category_id}
-                        categories={categories}
-                      />
-                    </TableCell>
-                    <TableCell
-                      className={`text-right tabular-nums ${
-                        amount < 0
-                          ? "text-rose-600 dark:text-rose-400"
-                          : "text-emerald-600 dark:text-emerald-400"
-                      }`}
-                    >
-                      {formatMoney(amount, tx.currency)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <TransactionsTable
+          transactions={transactions}
+          categories={categories}
+          sort={sort}
+          dir={dir}
+        />
       ) : (
         <Card>
           <CardHeader>
@@ -221,48 +157,5 @@ export default async function TransactionsPage({
         </Card>
       )}
     </div>
-  );
-}
-
-/** Clickable column header — toggles the sort dir or switches the sort key. */
-function SortLink({
-  sort,
-  current,
-  params,
-  align = "left",
-  children,
-}: {
-  sort: SortKey;
-  current: { sort: SortKey; dir: SortDir };
-  params: SearchParams;
-  align?: "left" | "right";
-  children: React.ReactNode;
-}) {
-  const isActive = current.sort === sort;
-  const nextDir: SortDir = isActive
-    ? current.dir === "desc"
-      ? "asc"
-      : "desc"
-    : "desc"; // first click = desc
-
-  const next = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (typeof v === "string" && v) next.set(k, v);
-  }
-  next.set("sort", sort);
-  next.set("dir", nextDir);
-
-  const Icon = !isActive ? ArrowUpDown : current.dir === "asc" ? ArrowUp : ArrowDown;
-
-  return (
-    <Link
-      href={`/transactions?${next.toString()}`}
-      className={`flex items-center gap-1 ${align === "right" ? "justify-end" : ""} ${
-        isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-      } transition-colors`}
-    >
-      {children}
-      <Icon className="size-3" />
-    </Link>
   );
 }

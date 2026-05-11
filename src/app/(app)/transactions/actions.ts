@@ -25,6 +25,119 @@ export async function setTransactionCategory(
   if (error) return { error: error.message };
 
   revalidatePath("/transactions");
+  revalidatePath("/cashflow");
   revalidatePath("/");
   return { ok: true };
+}
+
+const NONE_SENTINEL = "__none__";
+
+/**
+ * Update many transactions in one go. Optionally creates one
+ * categorization_rule per unique counterparty in the selection so
+ * future imports get the same tag automatically.
+ */
+export async function bulkSetCategory(
+  transactionIds: string[],
+  categoryId: string | null,
+  createRules: boolean,
+): Promise<
+  | { ok: true; updated: number; rulesCreated: number }
+  | { error: string }
+> {
+  if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
+    return { error: "No transactions selected" };
+  }
+  if (transactionIds.length > 1000) {
+    return { error: "Too many transactions in one batch (>1000)" };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { data: membership } = await supabase
+    .from("household_members")
+    .select("household_id")
+    .eq("user_id", user.id)
+    .order("joined_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!membership) return { error: "No household for user" };
+  const household_id = membership.household_id;
+
+  // Resolve "no category" sentinel to null. RLS makes sure ids that don't
+  // belong to the user's household are silently filtered out.
+  const targetCategoryId = categoryId === NONE_SENTINEL ? null : categoryId;
+
+  const { data: updated, error: updErr } = await supabase
+    .from("transactions")
+    .update({ category_id: targetCategoryId })
+    .in("id", transactionIds)
+    .select("id, counterparty_name");
+
+  if (updErr) return { error: updErr.message };
+
+  let rulesCreated = 0;
+
+  if (createRules && targetCategoryId && updated?.length) {
+    // Distinct, non-empty counterparties from the selection.
+    const counterparties = Array.from(
+      new Set(
+        updated
+          .map((t) => t.counterparty_name?.trim())
+          .filter((n): n is string => !!n && n.length > 0),
+      ),
+    );
+
+    if (counterparties.length > 0) {
+      // Pull existing rules so we don't duplicate counterparty matches.
+      const { data: existing } = await supabase
+        .from("categorization_rules")
+        .select("match_value, match_field, match_type")
+        .eq("household_id", household_id)
+        .eq("match_field", "counterparty_name")
+        .eq("match_type", "contains");
+
+      const existingValues = new Set(
+        (existing ?? []).map((r) => r.match_value.trim().toLowerCase()),
+      );
+
+      const newRules = counterparties
+        .filter((c) => !existingValues.has(c.toLowerCase()))
+        .map((c) => ({
+          household_id,
+          category_id: targetCategoryId,
+          match_field: "counterparty_name" as const,
+          match_type: "contains" as const,
+          match_value: c,
+          is_case_sensitive: false,
+          priority: 0,
+        }));
+
+      if (newRules.length > 0) {
+        const { error: ruleErr, count } = await supabase
+          .from("categorization_rules")
+          .insert(newRules, { count: "exact" });
+        if (ruleErr) {
+          // Categorisation worked; surface the rule-creation error softly.
+          return { error: `Categorisation done, rule creation failed: ${ruleErr.message}` };
+        }
+        rulesCreated = count ?? newRules.length;
+      }
+    }
+  }
+
+  revalidatePath("/transactions");
+  revalidatePath("/cashflow");
+  revalidatePath("/settings/rules");
+  revalidatePath("/");
+
+  return {
+    ok: true,
+    updated: updated?.length ?? 0,
+    rulesCreated,
+  };
 }

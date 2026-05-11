@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatMoney } from "@/lib/format";
 import { DisconnectButton } from "./disconnect-button";
 import { SyncButton } from "./sync-button";
+
+const CONSENT_WARN_DAYS = 14;
 
 // Vercel Hobby max — gives the server action enough room for an initial
 // 90-day sync of a multi-account connection.
@@ -68,6 +71,7 @@ export default async function AccountsPage() {
           {connections!.map((conn) => {
             const connAccounts =
               accounts?.filter((a) => a.bank_connection_id === conn.id) ?? [];
+            const consent = consentStatus(conn.expires_at);
             return (
               <Card key={conn.id}>
                 <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
@@ -96,6 +100,12 @@ export default async function AccountsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {consent.severity !== "ok" ? (
+                    <ConsentReminder
+                      severity={consent.severity}
+                      daysLeft={consent.daysLeft}
+                    />
+                  ) : null}
                   {conn.last_error ? (
                     <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive break-words">
                       Last sync error: {conn.last_error}
@@ -138,6 +148,55 @@ export default async function AccountsPage() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+interface ConsentStatus {
+  severity: "ok" | "warn" | "expired";
+  daysLeft: number;
+}
+
+function consentStatus(expiresAt: string | null): ConsentStatus {
+  if (!expiresAt) return { severity: "ok", daysLeft: Number.POSITIVE_INFINITY };
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
+  if (days <= 0) return { severity: "expired", daysLeft: days };
+  if (days <= CONSENT_WARN_DAYS) return { severity: "warn", daysLeft: days };
+  return { severity: "ok", daysLeft: days };
+}
+
+function ConsentReminder({
+  severity,
+  daysLeft,
+}: {
+  severity: "warn" | "expired";
+  daysLeft: number;
+}) {
+  const expired = severity === "expired";
+  const className = expired
+    ? "border-destructive/40 bg-destructive/5 text-destructive"
+    : "border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400";
+  const message = expired
+    ? `Consent has expired${daysLeft < 0 ? ` ${Math.abs(daysLeft)} day${Math.abs(daysLeft) === 1 ? "" : "s"} ago` : ""}. Reconnect to resume syncing.`
+    : `Consent expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}. Re-link to keep syncs flowing.`;
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-xs ${className}`}
+    >
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="size-4 shrink-0" />
+        <span>{message}</span>
+      </div>
+      <Link
+        href="/accounts/connect"
+        className={buttonVariants({
+          variant: expired ? "destructive" : "outline",
+          size: "xs",
+        })}
+      >
+        Re-link
+      </Link>
     </div>
   );
 }
