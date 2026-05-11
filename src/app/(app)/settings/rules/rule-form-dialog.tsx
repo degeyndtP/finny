@@ -138,14 +138,16 @@ export function RuleFormDialog({ open, onOpenChange, rule, categories }: Props) 
               <Label>Field</Label>
               <Select
                 value={matchField}
-                onValueChange={(v) => setMatchField(v as Field)}
+                onValueChange={(v) => setMatchField((v ?? "counterparty_name") as Field)}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value: string | null) => FIELD_LABEL[(value ?? "counterparty_name") as Field]}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {(Object.keys(FIELD_LABEL) as Field[]).map((f) => (
-                    <SelectItem key={f} value={f}>
+                    <SelectItem key={f} value={f} label={FIELD_LABEL[f]}>
                       {FIELD_LABEL[f]}
                     </SelectItem>
                   ))}
@@ -156,14 +158,16 @@ export function RuleFormDialog({ open, onOpenChange, rule, categories }: Props) 
               <Label>&nbsp;</Label>
               <Select
                 value={matchType}
-                onValueChange={(v) => setMatchType(v as MatchType)}
+                onValueChange={(v) => setMatchType((v ?? "contains") as MatchType)}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value: string | null) => MATCH_LABEL[(value ?? "contains") as MatchType]}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {(Object.keys(MATCH_LABEL) as MatchType[]).map((m) => (
-                    <SelectItem key={m} value={m}>
+                    <SelectItem key={m} value={m} label={MATCH_LABEL[m]}>
                       {MATCH_LABEL[m]}
                     </SelectItem>
                   ))}
@@ -209,7 +213,12 @@ export function RuleFormDialog({ open, onOpenChange, rule, categories }: Props) 
                 onValueChange={(v) => setCategoryId(v ?? "")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pick a category" />
+                  <SelectValue placeholder="Pick a category">
+                    {(value: string | null) => {
+                      if (!value) return "Pick a category";
+                      return categories.find((c) => c.id === value)?.name ?? "Category";
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {grouped.income.length ? (
@@ -284,7 +293,7 @@ export function RuleFormDialog({ open, onOpenChange, rule, categories }: Props) 
 
 function CategoryItem({ c }: { c: RuleDialogCategory }) {
   return (
-    <SelectItem value={c.id}>
+    <SelectItem value={c.id} label={c.name}>
       <span className="flex items-center gap-2">
         <span
           aria-hidden

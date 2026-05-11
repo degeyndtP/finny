@@ -133,11 +133,17 @@ export function TransactionsTable({ transactions, categories, sort, dir }: Props
             disabled={pending}
           >
             <SelectTrigger className="w-56">
-              <SelectValue placeholder="Set category…" />
+              <SelectValue placeholder="Set category…">
+                {(value: string | null) => {
+                  if (!value || value === NONE)
+                    return <span className="text-muted-foreground">Set as uncategorised</span>;
+                  return categories.find((c) => c.id === value)?.name ?? "Set category…";
+                }}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NONE}>
-                <span className="text-muted-foreground">— Uncategorised</span>
+              <SelectItem value={NONE} label="Uncategorised">
+                <span className="text-muted-foreground">Uncategorised</span>
               </SelectItem>
               {grouped.income.length ? (
                 <>
@@ -295,7 +301,7 @@ export function TransactionsTable({ transactions, categories, sort, dir }: Props
 
 function CategoryItem({ c }: { c: CategoryOption }) {
   return (
-    <SelectItem value={c.id}>
+    <SelectItem value={c.id} label={c.name}>
       <span className="flex items-center gap-2">
         <span
           aria-hidden

@@ -125,12 +125,18 @@ export function TransactionsFilters({
             }
           >
             <SelectTrigger className="w-44">
-              <SelectValue placeholder="All categories" />
+              <SelectValue placeholder="All categories">
+                {(value: string | null) => {
+                  if (!value || value === ALL) return "All categories";
+                  if (value === "uncategorised") return "Uncategorised";
+                  return categories.find((c) => c.id === value)?.name ?? "Category";
+                }}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>All categories</SelectItem>
-              <SelectItem value="uncategorised">
-                <span className="text-muted-foreground">— Uncategorised</span>
+              <SelectItem value={ALL} label="All categories">All categories</SelectItem>
+              <SelectItem value="uncategorised" label="Uncategorised">
+                <span className="text-muted-foreground">Uncategorised</span>
               </SelectItem>
               {grouped.income.length ? (
                 <>
@@ -174,15 +180,24 @@ export function TransactionsFilters({
             }
           >
             <SelectTrigger className="w-44">
-              <SelectValue placeholder="All accounts" />
+              <SelectValue placeholder="All accounts">
+                {(value: string | null) => {
+                  if (!value || value === ALL) return "All accounts";
+                  const a = accounts.find((x) => x.id === value);
+                  return a?.display_name ?? a?.iban ?? "Account";
+                }}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>All accounts</SelectItem>
-              {accounts.map((a) => (
-                <SelectItem key={a.id} value={a.id}>
-                  {a.display_name ?? a.iban ?? "Account"}
-                </SelectItem>
-              ))}
+              <SelectItem value={ALL} label="All accounts">All accounts</SelectItem>
+              {accounts.map((a) => {
+                const label = a.display_name ?? a.iban ?? "Account";
+                return (
+                  <SelectItem key={a.id} value={a.id} label={label}>
+                    {label}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -230,7 +245,7 @@ export function TransactionsFilters({
 
 function CategoryItem({ c }: { c: FilterCategory }) {
   return (
-    <SelectItem value={c.id}>
+    <SelectItem value={c.id} label={c.name}>
       <span className="flex items-center gap-2">
         <span
           aria-hidden

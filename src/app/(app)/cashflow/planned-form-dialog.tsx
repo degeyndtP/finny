@@ -66,6 +66,14 @@ interface Props {
 
 const NONE_VALUE = "__none__";
 
+const RECURRENCE_LABELS: Record<Recurrence, string> = {
+  none: "One-off",
+  weekly: "Weekly",
+  monthly: "Monthly",
+  quarterly: "Quarterly",
+  yearly: "Yearly",
+};
+
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -170,13 +178,15 @@ export function PlannedFormDialog({
                 onValueChange={(v) => setDirection((v ?? "out") as "out" | "in")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value: string | null) => (value === "in" ? "In" : "Out")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="out">
+                  <SelectItem value="out" label="Out">
                     <span className="text-rose-600 dark:text-rose-400">Out</span>
                   </SelectItem>
-                  <SelectItem value="in">
+                  <SelectItem value="in" label="In">
                     <span className="text-emerald-600 dark:text-emerald-400">In</span>
                   </SelectItem>
                 </SelectContent>
@@ -216,14 +226,16 @@ export function PlannedFormDialog({
                 onValueChange={(v) => setRecurrence((v ?? "none") as Recurrence)}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value: string | null) => RECURRENCE_LABELS[(value ?? "none") as Recurrence]}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">One-off</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="yearly">Yearly</SelectItem>
+                  <SelectItem value="none" label="One-off">One-off</SelectItem>
+                  <SelectItem value="weekly" label="Weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly" label="Monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly" label="Quarterly">Quarterly</SelectItem>
+                  <SelectItem value="yearly" label="Yearly">Yearly</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -253,11 +265,16 @@ export function PlannedFormDialog({
                 onValueChange={(v) => setCategoryId(v === NONE_VALUE ? "" : (v ?? ""))}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pick a category" />
+                  <SelectValue placeholder="None">
+                    {(value: string | null) => {
+                      if (!value || value === NONE_VALUE) return "None";
+                      return categories.find((c) => c.id === value)?.name ?? "Category";
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NONE_VALUE}>
-                    <span className="text-muted-foreground">—</span>
+                  <SelectItem value={NONE_VALUE} label="None">
+                    <span className="text-muted-foreground">None</span>
                   </SelectItem>
                   {grouped.income.length ? (
                     <>
@@ -302,17 +319,26 @@ export function PlannedFormDialog({
                 onValueChange={(v) => setAccountId(v === NONE_VALUE ? "" : (v ?? ""))}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Any account" />
+                  <SelectValue placeholder="Any account">
+                    {(value: string | null) => {
+                      if (!value || value === NONE_VALUE) return "Any account";
+                      const a = accounts.find((x) => x.id === value);
+                      return a?.display_name ?? a?.iban ?? "Account";
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NONE_VALUE}>
-                    <span className="text-muted-foreground">— Any account</span>
+                  <SelectItem value={NONE_VALUE} label="Any account">
+                    <span className="text-muted-foreground">Any account</span>
                   </SelectItem>
-                  {accounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.display_name ?? a.iban ?? "Account"}
-                    </SelectItem>
-                  ))}
+                  {accounts.map((a) => {
+                    const label = a.display_name ?? a.iban ?? "Account";
+                    return (
+                      <SelectItem key={a.id} value={a.id} label={label}>
+                        {label}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -338,7 +364,7 @@ export function PlannedFormDialog({
 
 function CategoryItem({ c }: { c: PlannedDialogCategory }) {
   return (
-    <SelectItem value={c.id}>
+    <SelectItem value={c.id} label={c.name}>
       <span className="flex items-center gap-2">
         <span
           aria-hidden

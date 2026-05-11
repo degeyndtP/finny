@@ -47,12 +47,17 @@ export function AccountSelector({ current, accounts }: Props) {
       disabled={pending}
     >
       <SelectTrigger className="w-56" aria-label="Filter by account">
-        <SelectValue />
+        <SelectValue>
+          {(value: string | null) => {
+            if (!value || value === ALL) return "All accounts";
+            return accounts.find((a) => a.id === value)?.label ?? "Account";
+          }}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={ALL}>All accounts</SelectItem>
+        <SelectItem value={ALL} label="All accounts">All accounts</SelectItem>
         {accounts.map((a) => (
-          <SelectItem key={a.id} value={a.id}>
+          <SelectItem key={a.id} value={a.id} label={a.label}>
             {a.label}
           </SelectItem>
         ))}

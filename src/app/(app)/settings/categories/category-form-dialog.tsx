@@ -102,14 +102,19 @@ export function CategoryFormDialog({ open, onOpenChange, category }: Props) {
           </div>
           <div className="space-y-2">
             <Label htmlFor={`${formId}-kind`}>Kind</Label>
-            <Select value={kind} onValueChange={(v) => setKind(v as Kind)}>
+            <Select value={kind} onValueChange={(v) => setKind((v ?? "expense") as Kind)}>
               <SelectTrigger id={`${formId}-kind`} className="w-full">
-                <SelectValue />
+                <SelectValue>
+                  {(value: string | null) => {
+                    const v = (value ?? "expense") as Kind;
+                    return v === "income" ? "Income" : v === "expense" ? "Expense" : "Transfer";
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="income">Income</SelectItem>
-                <SelectItem value="expense">Expense</SelectItem>
-                <SelectItem value="transfer">Transfer</SelectItem>
+                <SelectItem value="income" label="Income">Income</SelectItem>
+                <SelectItem value="expense" label="Expense">Expense</SelectItem>
+                <SelectItem value="transfer" label="Transfer">Transfer</SelectItem>
               </SelectContent>
             </Select>
           </div>

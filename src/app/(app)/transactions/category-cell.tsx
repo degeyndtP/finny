@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { CategoryBadge } from "@/components/category-badge";
 import {
   Select,
   SelectContent,
@@ -44,6 +45,11 @@ export function CategoryCell({
   // Local state lets us show the new value immediately while the action runs.
   const [value, setValue] = useState<string>(currentCategoryId ?? NONE);
 
+  const byId = useMemo(
+    () => new Map(categories.map((c) => [c.id, c])),
+    [categories],
+  );
+
   function onChange(next: string | null) {
     const resolved = next ?? NONE;
     if (resolved === value) return;
@@ -71,12 +77,21 @@ export function CategoryCell({
 
   return (
     <Select value={value} onValueChange={onChange} disabled={pending}>
-      <SelectTrigger className="h-7 w-full max-w-44 border-transparent bg-transparent px-2 hover:border-border data-[state=open]:border-border">
-        <SelectValue placeholder="—" />
+      <SelectTrigger className="h-7 w-full max-w-48 border-transparent bg-transparent px-2 hover:border-border data-[state=open]:border-border">
+        <SelectValue placeholder="None">
+          {(selected: string | null) => {
+            if (!selected || selected === NONE) {
+              return <span className="text-sm text-muted-foreground">None</span>;
+            }
+            const c = byId.get(selected);
+            if (!c) return <span className="text-sm text-muted-foreground">None</span>;
+            return <CategoryBadge name={c.name} color={c.color} />;
+          }}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={NONE}>
-          <span className="text-muted-foreground">— Uncategorised</span>
+        <SelectItem value={NONE} label="None">
+          <span className="text-muted-foreground">None</span>
         </SelectItem>
         {grouped.income.length ? (
           <>
@@ -118,7 +133,7 @@ export function CategoryCell({
 
 function Option({ c }: { c: CategoryOption }) {
   return (
-    <SelectItem value={c.id}>
+    <SelectItem value={c.id} label={c.name}>
       <span className="flex items-center gap-2">
         <span
           aria-hidden
