@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient } from "@/lib/supabase/server";
+import { applyRulesToUncategorised } from "@/lib/banking/categorize";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 export async function setTransactionCategory(
   transactionId: string,
@@ -42,7 +43,7 @@ export async function bulkSetCategory(
   categoryId: string | null,
   createRules: boolean,
 ): Promise<
-  | { ok: true; updated: number; rulesCreated: number }
+  | { ok: true; updated: number; rulesCreated: number; alsoApplied: number }
   | { error: string }
 > {
   if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
@@ -130,6 +131,22 @@ export async function bulkSetCategory(
     }
   }
 
+  // When we created at least one new rule, retroactively apply rules to
+  // anything that's still uncategorised — historical occurrences of the
+  // same counterparty that weren't part of this selection get tagged too.
+  let alsoApplied = 0;
+  if (rulesCreated > 0) {
+    try {
+      const service = createServiceClient();
+      alsoApplied = await applyRulesToUncategorised(service, { household_id });
+    } catch (e) {
+      console.warn(
+        "[bulkSetCategory] auto-reapply failed:",
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
+
   revalidatePath("/transactions");
   revalidatePath("/cashflow");
   revalidatePath("/settings/rules");
@@ -139,5 +156,6 @@ export async function bulkSetCategory(
     ok: true,
     updated: updated?.length ?? 0,
     rulesCreated,
+    alsoApplied,
   };
 }

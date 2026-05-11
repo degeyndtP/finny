@@ -103,9 +103,15 @@ export function TransactionsTable({ transactions, categories, sort, dir }: Props
           : categories.find((c) => c.id === target)?.name ?? "category";
       const main = `Tagged ${result.updated} transaction${result.updated === 1 ? "" : "s"} as ${cat}`;
       if (result.rulesCreated > 0) {
-        toast.success(main, {
-          description: `Also created ${result.rulesCreated} auto-rule${result.rulesCreated === 1 ? "" : "s"} for the counterparties in this batch.`,
-        });
+        const parts = [
+          `Created ${result.rulesCreated} auto-rule${result.rulesCreated === 1 ? "" : "s"} for the counterparties in this batch.`,
+        ];
+        if (result.alsoApplied > 0) {
+          parts.push(
+            `Tagged ${result.alsoApplied} other previously-uncategorised transaction${result.alsoApplied === 1 ? "" : "s"} too.`,
+          );
+        }
+        toast.success(main, { description: parts.join(" ") });
       } else {
         toast.success(main);
       }
@@ -283,8 +289,8 @@ export function TransactionsTable({ transactions, categories, sort, dir }: Props
                   <TableCell
                     className={`text-right tabular-nums ${
                       amount < 0
-                        ? "text-rose-600 dark:text-rose-400"
-                        : "text-emerald-600 dark:text-emerald-400"
+                        ? "text-rose-500 dark:text-rose-400"
+                        : "text-emerald-500 dark:text-emerald-400"
                     }`}
                   >
                     {formatMoney(amount, tx.currency)}

@@ -135,8 +135,8 @@ export default async function OverviewPage() {
                     <div
                       className={`tabular-nums ${
                         amt < 0
-                          ? "text-rose-600 dark:text-rose-400"
-                          : "text-emerald-600 dark:text-emerald-400"
+                          ? "text-rose-500 dark:text-rose-400"
+                          : "text-emerald-500 dark:text-emerald-400"
                       }`}
                     >
                       {formatMoney(amt, tx.currency)}
@@ -201,9 +201,9 @@ function Kpi({
 }) {
   const toneClass =
     tone === "positive"
-      ? "text-emerald-600 dark:text-emerald-400"
+      ? "text-emerald-500 dark:text-emerald-400"
       : tone === "negative"
-        ? "text-rose-600 dark:text-rose-400"
+        ? "text-rose-500 dark:text-rose-400"
         : "";
   return (
     <Card>

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CategoryBadge } from "@/components/category-badge";
 import { CategoryFormDialog } from "./category-form-dialog";
 import { deleteCategory } from "./actions";
 
@@ -116,17 +117,10 @@ export function CategoriesManager({ categories }: { categories: CategoryRow[] })
                         className="flex items-center justify-between gap-3 py-3"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <span
-                            aria-hidden
-                            className="size-3 shrink-0 rounded-full"
-                            style={{ backgroundColor: cat.color ?? "#6B7280" }}
-                          />
-                          <span className="truncate text-sm font-medium">
-                            {cat.name}
-                          </span>
+                          <CategoryBadge name={cat.name} color={cat.color} />
                           {cat.monthly_budget != null ? (
                             <span className="text-xs text-muted-foreground tabular-nums">
-                              · €{cat.monthly_budget}/mo
+                              €{cat.monthly_budget}/mo
                             </span>
                           ) : null}
                         </div>

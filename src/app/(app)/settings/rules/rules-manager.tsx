@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CategoryBadge } from "@/components/category-badge";
 import { deleteRule, reapplyRules } from "./actions";
 import {
   RuleFormDialog,
@@ -180,14 +181,7 @@ export function RulesManager({ rules, categories }: Props) {
                       ) : null}
                       <span className="text-muted-foreground">→</span>
                       {cat ? (
-                        <span className="flex items-center gap-1.5 font-medium">
-                          <span
-                            aria-hidden
-                            className="size-2.5 rounded-full"
-                            style={{ backgroundColor: cat.color ?? "#6B7280" }}
-                          />
-                          {cat.name}
-                        </span>
+                        <CategoryBadge name={cat.name} color={cat.color} />
                       ) : (
                         <span className="text-muted-foreground italic">
                           missing category

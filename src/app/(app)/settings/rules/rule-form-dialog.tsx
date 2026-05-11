@@ -115,7 +115,14 @@ export function RuleFormDialog({ open, onOpenChange, rule, categories }: Props) 
         toast.error(result.error);
         return;
       }
-      toast.success(isEdit ? "Rule updated" : "Rule created");
+      const base = isEdit ? "Rule updated" : "Rule created";
+      if (result.applied > 0) {
+        toast.success(base, {
+          description: `Tagged ${result.applied} previously uncategorised transaction${result.applied === 1 ? "" : "s"}.`,
+        });
+      } else {
+        toast.success(base);
+      }
       onOpenChange(false);
       router.refresh();
     });

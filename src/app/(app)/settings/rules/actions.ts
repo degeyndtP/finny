@@ -28,7 +28,10 @@ export type UpsertRuleInput = z.input<typeof upsertSchema>;
 
 export async function upsertRule(
   input: UpsertRuleInput,
-): Promise<{ ok: true; id: string } | { error: string }> {
+): Promise<
+  | { ok: true; id: string; applied: number }
+  | { error: string }
+> {
   const parsed = upsertSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues.map((i) => i.message).join("; ") };
@@ -62,6 +65,8 @@ export async function upsertRule(
   }
   const household_id = membership.household_id;
 
+  let savedId: string;
+
   if (data.id) {
     const { error } = await supabase
       .from("categorization_rules")
@@ -75,27 +80,45 @@ export async function upsertRule(
       })
       .eq("id", data.id);
     if (error) return { error: error.message };
-    revalidatePath("/settings/rules");
-    return { ok: true, id: data.id };
+    savedId = data.id;
+  } else {
+    const { data: row, error } = await supabase
+      .from("categorization_rules")
+      .insert({
+        household_id,
+        category_id: data.category_id,
+        match_field: data.match_field,
+        match_type: data.match_type,
+        match_value: data.match_value,
+        is_case_sensitive: data.is_case_sensitive,
+        priority: data.priority,
+      })
+      .select("id")
+      .single();
+    if (error || !row) return { error: error?.message ?? "Insert failed" };
+    savedId = row.id;
   }
 
-  const { data: row, error } = await supabase
-    .from("categorization_rules")
-    .insert({
-      household_id,
-      category_id: data.category_id,
-      match_field: data.match_field,
-      match_type: data.match_type,
-      match_value: data.match_value,
-      is_case_sensitive: data.is_case_sensitive,
-      priority: data.priority,
-    })
-    .select("id")
-    .single();
-  if (error || !row) return { error: error?.message ?? "Insert failed" };
+  // Auto-apply: the rule is fresh; immediately retag any uncategorised
+  // transactions that match it (and other rules). Service-role bypasses
+  // RLS for the bulk update — ownership is already verified above.
+  let applied = 0;
+  try {
+    const service = createServiceClient();
+    applied = await applyRulesToUncategorised(service, { household_id });
+  } catch (e) {
+    // Non-fatal: the rule is saved, just couldn't auto-apply.
+    console.warn(
+      "[upsertRule] auto-reapply failed:",
+      e instanceof Error ? e.message : e,
+    );
+  }
 
   revalidatePath("/settings/rules");
-  return { ok: true, id: row.id };
+  revalidatePath("/transactions");
+  revalidatePath("/cashflow");
+  revalidatePath("/");
+  return { ok: true, id: savedId, applied };
 }
 
 export async function deleteRule(
