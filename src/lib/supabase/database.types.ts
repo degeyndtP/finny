@@ -145,6 +145,7 @@ export type Database = {
           icon: string | null
           id: string
           kind: string
+          monthly_budget: number | null
           name: string
           parent_id: string | null
           sort_order: number
@@ -156,6 +157,7 @@ export type Database = {
           icon?: string | null
           id?: string
           kind: string
+          monthly_budget?: number | null
           name: string
           parent_id?: string | null
           sort_order?: number
@@ -167,6 +169,7 @@ export type Database = {
           icon?: string | null
           id?: string
           kind?: string
+          monthly_budget?: number | null
           name?: string
           parent_id?: string | null
           sort_order?: number

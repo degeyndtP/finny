@@ -6,7 +6,7 @@ export default async function CategoriesPage() {
 
   const { data, error } = await supabase
     .from("categories")
-    .select("id, name, kind, color, parent_id, sort_order")
+    .select("id, name, kind, color, parent_id, sort_order, monthly_budget")
     .order("kind", { ascending: true })
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });

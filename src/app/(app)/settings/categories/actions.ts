@@ -25,6 +25,14 @@ const upsertSchema = z.object({
     .optional()
     .or(z.literal(""))
     .transform((v) => (v ? v : null)),
+  /** Positive monthly budget; null clears the budget. */
+  monthly_budget: z
+    .number()
+    .finite()
+    .nonnegative()
+    .nullable()
+    .optional()
+    .transform((v) => (v == null || v === 0 ? null : v)),
 });
 
 export type UpsertCategoryInput = z.input<typeof upsertSchema>;
@@ -56,6 +64,10 @@ export async function upsertCategory(
   }
   const household_id = membership.household_id;
 
+  // Budgets only apply to expense categories — null it out otherwise so
+  // switching kind doesn't leave a stale value behind.
+  const monthlyBudget = data.kind === "expense" ? data.monthly_budget : null;
+
   if (data.id) {
     // Update — RLS limits to the user's household.
     const { error } = await supabase
@@ -65,11 +77,13 @@ export async function upsertCategory(
         kind: data.kind,
         color: data.color ?? null,
         parent_id: data.parent_id ?? null,
+        monthly_budget: monthlyBudget,
       })
       .eq("id", data.id);
     if (error) return { error: error.message };
     revalidatePath("/settings/categories");
     revalidatePath("/transactions");
+    revalidatePath("/cashflow");
     revalidatePath("/");
     return { ok: true, id: data.id };
   }
@@ -82,6 +96,7 @@ export async function upsertCategory(
       kind: data.kind,
       color: data.color ?? null,
       parent_id: data.parent_id ?? null,
+      monthly_budget: monthlyBudget,
     })
     .select("id")
     .single();
@@ -89,6 +104,7 @@ export async function upsertCategory(
 
   revalidatePath("/settings/categories");
   revalidatePath("/transactions");
+  revalidatePath("/cashflow");
   revalidatePath("/");
   return { ok: true, id: row.id };
 }

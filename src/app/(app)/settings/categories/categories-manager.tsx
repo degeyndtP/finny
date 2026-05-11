@@ -20,6 +20,7 @@ export interface CategoryRow {
   color: string | null;
   parent_id: string | null;
   sort_order: number;
+  monthly_budget: number | null;
 }
 
 const KIND_LABELS: Record<Kind, string> = {
@@ -123,6 +124,11 @@ export function CategoriesManager({ categories }: { categories: CategoryRow[] })
                           <span className="truncate text-sm font-medium">
                             {cat.name}
                           </span>
+                          {cat.monthly_budget != null ? (
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              · €{cat.monthly_budget}/mo
+                            </span>
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-1">
                           <Button
@@ -165,6 +171,7 @@ export function CategoriesManager({ categories }: { categories: CategoryRow[] })
                 name: editing.name,
                 kind: editing.kind,
                 color: editing.color,
+                monthly_budget: editing.monthly_budget,
               }
             : undefined
         }

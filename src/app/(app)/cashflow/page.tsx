@@ -42,6 +42,7 @@ interface CategoryLookup {
   name: string;
   kind: "income" | "expense" | "transfer";
   color: string | null;
+  monthly_budget: number | null;
 }
 
 export default async function CashflowPage({
@@ -111,6 +112,18 @@ export default async function CashflowPage({
     .eq("archived", false);
   if (accountFilter) accountsBalanceQuery.eq("id", accountFilter);
 
+  // Budget tracker — always scoped to the current month, regardless of the
+  // user-selected period above.
+  const monthStartIso = new Date(today.getFullYear(), today.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+  const budgetTxQuery = supabase
+    .from("transactions")
+    .select("amount, category_id")
+    .gte("booking_date", monthStartIso)
+    .lte("booking_date", todayIso);
+  if (accountFilter) budgetTxQuery.eq("account_id", accountFilter);
+
   const [
     { data: txRaw },
     { data: priorTxRaw },
@@ -119,12 +132,13 @@ export default async function CashflowPage({
     { data: accountsRaw },
     { data: allAccountsRaw },
     { data: plannedRaw },
+    { data: budgetTxRaw },
   ] = await Promise.all([
     periodTxQuery,
     priorTxQuery,
     supabase
       .from("categories")
-      .select("id, name, kind, color")
+      .select("id, name, kind, color, monthly_budget")
       .order("kind")
       .order("sort_order")
       .order("name"),
@@ -142,6 +156,7 @@ export default async function CashflowPage({
         "id, description, amount, due_date, recurrence, recurrence_until, category_id, account_id",
       )
       .order("due_date", { ascending: true }),
+    budgetTxQuery,
   ]);
 
   const transactions: MinTx[] = (txRaw ?? []).map((t) => ({
@@ -295,6 +310,47 @@ export default async function CashflowPage({
   );
   const projectedEnd = startingBalance + projectedNet;
 
+  // ---------- Budget status (current month, always) -----------------------
+  const spentByCategory = new Map<string, number>();
+  for (const t of budgetTxRaw ?? []) {
+    if (!t.category_id) continue;
+    const amount = Number(t.amount);
+    if (amount >= 0) continue; // budget only tracks outflow
+    spentByCategory.set(
+      t.category_id,
+      (spentByCategory.get(t.category_id) ?? 0) + -amount,
+    );
+  }
+
+  interface BudgetRow {
+    id: string;
+    name: string;
+    color: string;
+    budget: number;
+    spent: number;
+    pct: number;
+  }
+  const budgetRows: BudgetRow[] = categories
+    .filter((c) => c.kind === "expense" && c.monthly_budget != null && c.monthly_budget > 0)
+    .map((c) => {
+      const budget = Number(c.monthly_budget);
+      const spent = spentByCategory.get(c.id) ?? 0;
+      return {
+        id: c.id,
+        name: c.name,
+        color: c.color ?? "#6B7280",
+        budget,
+        spent,
+        pct: budget === 0 ? 0 : (spent / budget) * 100,
+      };
+    })
+    .sort((a, b) => b.pct - a.pct);
+
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const daysElapsed = today.getDate();
+  const daysLeft = Math.max(0, daysInMonth - daysElapsed);
+  const monthName = today.toLocaleDateString("nl-BE", { month: "long" });
+
   const periodLabel = `${formatDate(from)} → ${formatDate(to)}`;
 
   // Account selector: full list of accounts with friendly labels.
@@ -382,6 +438,14 @@ export default async function CashflowPage({
           empty="No income in this range."
         />
       </div>
+
+      <BudgetStatusCard
+        rows={budgetRows}
+        currency={currency}
+        monthName={monthName}
+        daysLeft={daysLeft}
+        daysInMonth={daysInMonth}
+      />
 
       <Card>
         <CardHeader>
@@ -528,6 +592,98 @@ function Kpi({
             <span className="text-muted-foreground/70">({delta.priorLabel})</span>
           </div>
         ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BudgetStatusCard({
+  rows,
+  currency,
+  monthName,
+  daysLeft,
+  daysInMonth,
+}: {
+  rows: { id: string; name: string; color: string; budget: number; spent: number; pct: number }[];
+  currency: string;
+  monthName: string;
+  daysLeft: number;
+  daysInMonth: number;
+}) {
+  if (rows.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Budget status</CardTitle>
+          <CardDescription>
+            Set a monthly budget on an expense category in{" "}
+            <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+              Settings → Categories
+            </code>{" "}
+            to see progress here.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Budget status</CardTitle>
+        <CardDescription>
+          Spent so far in {monthName} · {daysLeft} day{daysLeft === 1 ? "" : "s"}{" "}
+          left of {daysInMonth}. Updates live as new transactions sync.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-3">
+          {rows.map((r) => {
+            const ratio = r.pct / 100;
+            const overBudget = ratio > 1;
+            // Colour the bar by how much of the period we've consumed vs how
+            // much of the budget. Past pace = orange, over = red, on track = green.
+            const dayRatio = daysInMonth === 0 ? 0 : (daysInMonth - daysLeft) / daysInMonth;
+            const tone = overBudget
+              ? "bg-rose-500"
+              : ratio > Math.max(0.9, dayRatio + 0.1)
+                ? "bg-amber-500"
+                : "bg-emerald-500";
+            const valueClass = overBudget
+              ? "text-rose-600 dark:text-rose-400"
+              : "text-foreground";
+            const fillWidth = Math.min(100, Math.max(2, r.pct));
+            return (
+              <li key={r.id} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      aria-hidden
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: r.color }}
+                    />
+                    <span className="truncate font-medium">{r.name}</span>
+                  </div>
+                  <div className={`tabular-nums shrink-0 ${valueClass}`}>
+                    {formatMoney(r.spent, currency)}{" "}
+                    <span className="text-muted-foreground">
+                      / {formatMoney(r.budget, currency)}
+                    </span>{" "}
+                    <span className="text-xs text-muted-foreground">
+                      ({r.pct.toFixed(0)}%)
+                    </span>
+                  </div>
+                </div>
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-2 transition-all ${tone}`}
+                    style={{ width: `${fillWidth}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </CardContent>
     </Card>
   );

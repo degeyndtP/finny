@@ -35,6 +35,7 @@ interface Props {
     name: string;
     kind: Kind;
     color: string | null;
+    monthly_budget: number | null;
   };
 }
 
@@ -47,15 +48,25 @@ export function CategoryFormDialog({ open, onOpenChange, category }: Props) {
   const [name, setName] = useState(category?.name ?? "");
   const [kind, setKind] = useState<Kind>(category?.kind ?? "expense");
   const [color, setColor] = useState(category?.color ?? "#6B7280");
+  const [budget, setBudget] = useState<string>(
+    category?.monthly_budget != null ? String(category.monthly_budget) : "",
+  );
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
+      const trimmedBudget = budget.trim();
+      const parsedBudget = trimmedBudget === "" ? null : Number(trimmedBudget);
+      if (parsedBudget !== null && (!Number.isFinite(parsedBudget) || parsedBudget < 0)) {
+        toast.error("Budget must be a positive number");
+        return;
+      }
       const result = await upsertCategory({
         id: category?.id,
         name: name.trim(),
         kind,
         color,
+        monthly_budget: parsedBudget,
       });
       if ("error" in result) {
         toast.error(result.error);
@@ -121,6 +132,26 @@ export function CategoryFormDialog({ open, onOpenChange, category }: Props) {
               />
             </div>
           </div>
+          {kind === "expense" ? (
+            <div className="space-y-2">
+              <Label htmlFor={`${formId}-budget`}>Monthly budget (optional)</Label>
+              <Input
+                id={`${formId}-budget`}
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="e.g. 600"
+                className="font-mono tabular-nums"
+              />
+              <p className="text-xs text-muted-foreground">
+                When set, a progress bar appears on the Cashflow page for the
+                current month. Leave empty to disable.
+              </p>
+            </div>
+          ) : null}
         </form>
         <DialogFooter>
           <Button
