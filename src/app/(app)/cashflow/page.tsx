@@ -479,8 +479,8 @@ export default async function CashflowPage({
                       <div
                         className={`tabular-nums shrink-0 ${
                           isOut
-                            ? "text-rose-500 dark:text-rose-400"
-                            : "text-emerald-500 dark:text-emerald-400"
+                            ? "text-chart-5"
+                            : "text-chart-2"
                         }`}
                       >
                         {formatMoney(Math.abs(c.total), currency)}
@@ -562,11 +562,11 @@ function Kpi({
 }) {
   const toneClass =
     tone === "positive"
-      ? "text-emerald-500 dark:text-emerald-400"
-      : "text-rose-500 dark:text-rose-400";
+      ? "text-chart-2"
+      : "text-chart-5";
   const deltaClass = delta?.better
-    ? "text-emerald-500 dark:text-emerald-400"
-    : "text-rose-500 dark:text-rose-400";
+    ? "text-chart-2"
+    : "text-chart-5";
   const arrow =
     delta?.pct == null ? "" : delta.pct > 0 ? "↑" : delta.pct < 0 ? "↓" : "";
 
@@ -650,7 +650,7 @@ function BudgetStatusCard({
                 ? "bg-amber-500"
                 : "bg-emerald-500";
             const valueClass = overBudget
-              ? "text-rose-500 dark:text-rose-400"
+              ? "text-chart-5"
               : "text-foreground";
             const fillWidth = Math.min(100, Math.max(2, r.pct));
             return (
@@ -704,8 +704,8 @@ function CategoryBreakdownCard({
 }) {
   const valueClass =
     tone === "positive"
-      ? "text-emerald-500 dark:text-emerald-400"
-      : "text-rose-500 dark:text-rose-400";
+      ? "text-chart-2"
+      : "text-chart-5";
   return (
     <Card>
       <CardHeader>

@@ -166,8 +166,8 @@ export function RecurringSection({
                         <span
                           className={`tabular-nums text-sm ${
                             isOut
-                              ? "text-rose-500 dark:text-rose-400"
-                              : "text-emerald-500 dark:text-emerald-400"
+                              ? "text-chart-5"
+                              : "text-chart-2"
                           }`}
                         >
                           {money.format(s.averageAmount)}
@@ -242,8 +242,8 @@ export function RecurringSection({
                         <span
                           className={`tabular-nums text-sm ${
                             isOut
-                              ? "text-rose-500 dark:text-rose-400"
-                              : "text-emerald-500 dark:text-emerald-400"
+                              ? "text-chart-5"
+                              : "text-chart-2"
                           }`}
                         >
                           {money.format(p.amount)}

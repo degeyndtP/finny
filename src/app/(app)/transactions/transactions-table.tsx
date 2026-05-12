@@ -289,8 +289,8 @@ export function TransactionsTable({ transactions, categories, sort, dir }: Props
                   <TableCell
                     className={`text-right tabular-nums ${
                       amount < 0
-                        ? "text-rose-500 dark:text-rose-400"
-                        : "text-emerald-500 dark:text-emerald-400"
+                        ? "text-chart-5"
+                        : "text-chart-2"
                     }`}
                   >
                     {formatMoney(amount, tx.currency)}

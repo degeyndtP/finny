@@ -184,10 +184,10 @@ export function PlannedFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="out" label="Out">
-                    <span className="text-rose-500 dark:text-rose-400">Out</span>
+                    <span className="text-chart-5">Out</span>
                   </SelectItem>
                   <SelectItem value="in" label="In">
-                    <span className="text-emerald-500 dark:text-emerald-400">In</span>
+                    <span className="text-chart-2">In</span>
                   </SelectItem>
                 </SelectContent>
               </Select>
