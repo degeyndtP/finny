@@ -39,9 +39,21 @@ export function CashflowChart({ data, currency, locale = "nl-BE" }: Props) {
   const dateShort = (iso: string) =>
     new Date(iso).toLocaleDateString(locale, { day: "2-digit", month: "short" });
 
+  // Range-based Y-axis padding: 8% top / 8% bottom of the visible range.
+  // Multiplicative padding on dataMin alone looks fine for big balances but
+  // collapses to nothing when the low point is near zero.
+  const values = data.map((d) => d.balance);
+  const lo = values.length ? Math.min(...values) : 0;
+  const hi = values.length ? Math.max(...values) : 1;
+  const range = hi - lo || Math.abs(hi) || 1;
+  const yDomain: [number, number] = [
+    Math.floor(lo - range * 0.08),
+    Math.ceil(hi + range * 0.08),
+  ];
+
   return (
     <ChartContainer config={chartConfig} className="aspect-auto h-64 w-full">
-      <AreaChart data={data} margin={{ left: 12, right: 12, top: 16, bottom: 0 }}>
+      <AreaChart data={data} margin={{ left: 12, right: 12, top: 16, bottom: 8 }}>
         <defs>
           <linearGradient id="cashflowFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="var(--color-balance)" stopOpacity={0.4} />
@@ -63,12 +75,7 @@ export function CashflowChart({ data, currency, locale = "nl-BE" }: Props) {
           tickMargin={8}
           width={60}
           tickFormatter={(v: number) => moneyShort.format(v)}
-          domain={[
-            (dataMin: number) =>
-              dataMin >= 0 ? Math.floor(dataMin * 0.95) : Math.floor(dataMin * 1.05),
-            (dataMax: number) =>
-              dataMax >= 0 ? Math.ceil(dataMax * 1.08) : Math.ceil(dataMax * 0.92),
-          ]}
+          domain={yDomain}
         />
         <ChartTooltip
           cursor={false}
