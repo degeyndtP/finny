@@ -1,6 +1,6 @@
 # Finny
 
-Personal finance dashboard — income, expenses, and cashflow planning fed by your real bank accounts via PSD2.
+Personal Belgian banking dashboard. Public for transparency / forkable as a template. No support; fork it and run your own.
 
 ## Stack
 
