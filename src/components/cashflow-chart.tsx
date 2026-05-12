@@ -41,7 +41,7 @@ export function CashflowChart({ data, currency, locale = "nl-BE" }: Props) {
 
   return (
     <ChartContainer config={chartConfig} className="aspect-auto h-64 w-full">
-      <AreaChart data={data} margin={{ left: 12, right: 12, top: 8, bottom: 0 }}>
+      <AreaChart data={data} margin={{ left: 12, right: 12, top: 16, bottom: 0 }}>
         <defs>
           <linearGradient id="cashflowFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="var(--color-balance)" stopOpacity={0.4} />
@@ -63,6 +63,12 @@ export function CashflowChart({ data, currency, locale = "nl-BE" }: Props) {
           tickMargin={8}
           width={60}
           tickFormatter={(v: number) => moneyShort.format(v)}
+          domain={[
+            (dataMin: number) =>
+              dataMin >= 0 ? Math.floor(dataMin * 0.95) : Math.floor(dataMin * 1.05),
+            (dataMax: number) =>
+              dataMax >= 0 ? Math.ceil(dataMax * 1.08) : Math.ceil(dataMax * 0.92),
+          ]}
         />
         <ChartTooltip
           cursor={false}
