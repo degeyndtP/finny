@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { enableBanking, EnableBankingError } from "@/lib/banking";
 import { syncBankConnection } from "@/lib/banking/sync";
+import { decryptSecret } from "@/lib/crypto";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 /**
@@ -36,17 +37,20 @@ export async function disconnectBank(
 
   // Best-effort revoke at the provider.
   if (conn.provider === "enablebanking" && conn.requisition_id) {
-    try {
-      await enableBanking.deleteSession(conn.requisition_id);
-    } catch (e) {
-      const detail =
-        e instanceof EnableBankingError
-          ? `${e.status} ${typeof e.body === "string" ? e.body : JSON.stringify(e.body)}`
-          : (e as Error).message;
-      console.warn(
-        `[disconnectBank] could not revoke Enable Banking session ${conn.requisition_id}: ${detail}`,
-      );
-      // continue — local cleanup is what the user asked for
+    const sessionId = decryptSecret(conn.requisition_id);
+    if (sessionId) {
+      try {
+        await enableBanking.deleteSession(sessionId);
+      } catch (e) {
+        const detail =
+          e instanceof EnableBankingError
+            ? `${e.status} ${typeof e.body === "string" ? e.body : JSON.stringify(e.body)}`
+            : (e as Error).message;
+        console.warn(
+          `[disconnectBank] could not revoke Enable Banking session for connection ${conn.id}: ${detail}`,
+        );
+        // continue — local cleanup is what the user asked for
+      }
     }
   }
 

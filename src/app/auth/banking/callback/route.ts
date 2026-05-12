@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { enableBanking, EnableBankingError, normalizeAccount } from "@/lib/banking";
 import { clearBankAuthState, readBankAuthState } from "@/lib/banking/state-cookie";
+import { encryptSecret } from "@/lib/crypto";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
       provider: "enablebanking",
       institution_id: stashed.aspspName,
       institution_name: session.aspsp?.name ?? stashed.aspspName,
-      requisition_id: session.session_id,
+      requisition_id: encryptSecret(session.session_id),
       status: "linked",
       expires_at: session.access?.valid_until ?? null,
     })
