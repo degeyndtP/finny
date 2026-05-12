@@ -95,13 +95,3 @@ openssl req -new -x509 \
 
 Then upload the new `public.crt` content via Enable Banking's `/api/applications` endpoint and update `ENABLE_BANKING_APP_ID` in `.env.local`.
 
-## Roadmap
-
-- [x] Schema, RLS, auth, app shell, types from live Supabase
-- [x] Enable Banking sandbox application registered
-- [ ] **Phase 2**: refactor `src/lib/gocardless/` into `src/lib/banking/` with a provider-agnostic interface and an `enablebanking` adapter that signs JWTs with the local RSA key, lists institutions, opens a consent session, and on callback persists accounts + first sync
-- [ ] **Phase 3**: cashflow chart on `/`, category breakdown
-- [ ] **Phase 4**: planned cashflows CRUD + projection
-- [ ] **Phase 5**: categorization rules + auto-apply on sync
-- [ ] **Phase 6**: scheduled daily sync (Supabase Edge Function + pg_cron)
-- [ ] **Phase 7**: React Native (Expo) client reusing `src/lib/*`
