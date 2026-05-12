@@ -34,6 +34,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
+      - name: Verify CRON_SECRET is configured
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error title=Missing secret::CRON_SECRET is not configured in this repository."
+            echo "::error::Add it at Settings → Secrets and variables → Actions → New repository secret."
+            echo "::error::The value must match CRON_SECRET in your Vercel project's environment variables."
+            echo "::error::See README → Self-host setup for the full checklist."
+            exit 1
+          fi
+
       - name: Check Brussels hour
         id: tz
         run: |

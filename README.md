@@ -95,3 +95,36 @@ openssl req -new -x509 \
 
 Then upload the new `public.crt` content via Enable Banking's `/api/applications` endpoint and update `ENABLE_BANKING_APP_ID` in `.env.local`.
 
+## Self-host setup (forks)
+
+Finny is shared as a template — you can fork it and run your own copy. To get a working deployment you need to wire up these accounts and secrets yourself.
+
+### Accounts to create
+
+1. **Supabase** project — Postgres + Auth + RLS. Run the SQL files in `supabase/migrations/` in numeric order against your new project.
+2. **Enable Banking** application — request access at <https://enablebanking.com/>. You need your own `app_id` and RSA keypair (see "Working with Enable Banking keys" above).
+3. **Vercel** project — link this repo, set the env vars below, deploy.
+
+### Required environment variables (Vercel + `.env.local`)
+
+See [`.env.example`](.env.example) for the full list with descriptions. The variables that are **secrets** (never commit them):
+
+| Variable | Where to get it | Mark as Sensitive on Vercel |
+|----------|-----------------|------------------------------|
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` | ✓ |
+| `ENABLE_BANKING_PRIVATE_KEY` | `keys/enablebanking_private.pem` (inline as PEM with `\n` escapes) | ✓ |
+| `CRON_SECRET` | Generate yourself: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` | ✓ |
+| `COLUMN_ENCRYPTION_KEY` | Generate yourself: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` — **back this up in a password manager; losing it makes encrypted bank session tokens unrecoverable** | ✓ |
+
+### GitHub Actions setup (for daily bank sync)
+
+Finny runs a 3×/day automatic bank sync via `.github/workflows/sync-bank.yml` (GitHub Actions is more reliable than Vercel Hobby cron). To enable it on your fork:
+
+1. Go to **your fork's** Settings → Secrets and variables → Actions → **New repository secret**
+2. Name: `CRON_SECRET`. Value: same string you put in Vercel's `CRON_SECRET` env var
+3. Wait for the next scheduled run (9:01 / 12:01 / 17:01 Brussels time, year-round), or trigger manually from the Actions tab → "Sync bank transactions" → "Run workflow"
+
+If `CRON_SECRET` is missing, the workflow fails on the first step with a clear error message.
+
+Adjust the schedule and timezone-filter in `.github/workflows/sync-bank.yml` if you're not in Belgium.
+
