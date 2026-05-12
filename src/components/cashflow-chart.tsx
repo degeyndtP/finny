@@ -96,7 +96,7 @@ export function CashflowChart({ data, currency, locale = "nl-BE" }: Props) {
         />
         <Area
           dataKey="balance"
-          type="natural"
+          type="monotone"
           stroke="var(--color-balance)"
           strokeWidth={2}
           fill="url(#cashflowFill)"
