@@ -1,0 +1,60 @@
+name: Sync bank transactions
+
+# Triggers a GET on /api/cron/sync, which is authenticated with the Bearer
+# token in `CRON_SECRET`. The endpoint syncs every linked bank connection
+# (idempotent — UNIQUE on account_id+external_id, so duplicate calls are safe).
+#
+# GitHub Actions cron runs in UTC and has no native timezone support, so to
+# hit 09:01 / 12:01 / 17:01 Brussels **year-round** we register cron lines for
+# BOTH seasons:
+#   - CEST (summer, UTC+2): 07:01 / 10:01 / 15:01 UTC
+#   - CET  (winter, UTC+1): 08:01 / 11:01 / 16:01 UTC
+#
+# In any given week only one of the two seasons applies. The runtime
+# "Check Brussels hour" step filters out the off-season runs so we always end
+# up doing exactly 3 syncs per day at the right Brussels-local time.
+#
+# Cost: 6 invocations × ~5s of tz check = ~30s/day of Actions runtime.
+
+on:
+  schedule:
+    # Summer (CEST)
+    - cron: '1 7 * * *'
+    - cron: '1 10 * * *'
+    - cron: '1 15 * * *'
+    # Winter (CET)
+    - cron: '1 8 * * *'
+    - cron: '1 11 * * *'
+    - cron: '1 16 * * *'
+  # Lets you trigger manually from the Actions tab.
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Check Brussels hour
+        id: tz
+        run: |
+          HOUR=$(TZ=Europe/Brussels date +%H)
+          echo "Brussels hour: $HOUR (event: ${{ github.event_name }})"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Manual trigger — proceeding."
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$HOUR" == "09" || "$HOUR" == "12" || "$HOUR" == "17" ]]; then
+            echo "Inside target window — proceeding."
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Outside target window 9/12/17 — skipping (DST off-season run)."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Call Finny sync endpoint
+        if: steps.tz.outputs.go == 'true'
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            https://finny-xi.vercel.app/api/cron/sync
